@@ -22,7 +22,7 @@ default_prompt: ChatCompletionMessageParam = {
 def generate_messages(guesses: list[str], feedback: list[list[Feedback]], num_lies: int, tries_left: int):
     if len(guesses) != len(feedback):
         raise ValueError(
-            "Error: the number of guessess should equal the length of guess feedback.")
+            "Error: the number of guesses should equal the length of guess feedback.")
 
     messages: Iterable[ChatCompletionMessageParam] = []
 
@@ -31,7 +31,7 @@ def generate_messages(guesses: list[str], feedback: list[list[Feedback]], num_li
     if num_lies > 0:
         messages.append({
             "role": "user",
-            "content": f"There are {num_lies} lies in this word."
+            "content": f"{num_lies} of the feedbacks provided to you are lies. Tailor your guesses accordingly."
         })
 
     for guess, fb in zip(guesses, feedback):

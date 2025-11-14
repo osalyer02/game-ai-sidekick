@@ -1,3 +1,15 @@
+# Note for LLM Testing
+
+This is a fork of the game-ai-sidekick wordle game (https://github.com/drchangliu/game-ai-sidekick/tree/main/wordle). Some modifications have been made to better facilitate LLM play:
+- LLMs are given 10 "strikes" per game; if they make 10 invalid guesses (words that are not five letters, words that are not in the dictionary), then they are marked as losing the game.
+  - This lowers the number of tries per game, but ensures that the game completes more quickly and does not get stuck in an infinite loop.
+- The system prompt and subsequent user prompts have been modified in an attempt to assist models in getting guesses on track after incorrect responses.
+
+Results for runs are marked in json files with the name of the LLM used in the runs and the variant of game being played (Wordle, Fibble1, etc.) in the filename. 
+
+This README is the only "source code" attached to a submission; the full source code may be viewed in its entirety at:
+https://github.com/osalyer02/game-ai-sidekick/tree/main/wordle
+
 # Project Python
 
 The purpose of this project is to remake the popular word game, Wordle and its variant Fibble, in Python.

@@ -2,6 +2,7 @@ import os
 import random
 import re
 import threading
+import time
 import requests
 from enum import Enum
 from threading import Timer
@@ -11,7 +12,7 @@ from firebase_admin.firestore import firestore
 from google import genai
 from openai import OpenAI, OpenAIError
 from openai.types.chat import ChatCompletionMessageParam
-from ollama import chat, ChatResponse
+from ollama import chat, ChatResponse, Client
 
 from assets.guess_words import GUESS_WORDS
 from classes.Button import Button
@@ -61,6 +62,7 @@ class GameState:
         self.num_guesses = 6
         self.num_lies = 0
         self.ai_strikeout = False
+        self.ai_timeout = False
         self.ai_consecutive_invalid_guesses = 0
         self.lie_indexes: list[int] = []
         self.actual_word = random.choice(GUESS_WORDS).upper()
@@ -78,7 +80,6 @@ class GameState:
         self.success = False
         self.current_word_index = 0
         self.was_valid_guess = False
-
         self.llm_platform = LLM_PLATFORM
         
         
@@ -148,6 +149,9 @@ class GameState:
     
         if self.llm_platform == "ollama":
             self.api_key_valid = True
+            self.ollama_client = Client(
+                timeout=10
+            )
 
         self.total_llm_guesses = []
         self.ai_loading = False
@@ -228,6 +232,7 @@ class GameState:
         self.current_word_index = 0
         self.was_valid_guess = False
         self.ai_strikeout = False
+        self.ai_timeout = False
         self.actual_word = random.choice(GUESS_WORDS).upper()
         self.words = [
             Word(
@@ -316,7 +321,7 @@ class GameState:
                 contents = "\n".join(map(
                     lambda message: message["content"], messages))
                 completion = self.gemini_client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=contents
                 )
                 org_response = completion.text
@@ -423,10 +428,14 @@ class GameState:
                 org_response = data["choices"][0]["message"]["content"]
 
             elif self.llm_platform == "ollama":
-                completion: ChatResponse = chat(
-                    model=OLLAMA_MODEL,
-                    messages=messages
-                )
+                try:
+                    completion: ChatResponse = self.ollama_client.chat(
+                        model=OLLAMA_MODEL,
+                        messages=messages
+                    )
+                except Exception as e:
+                    self.ai_timeout = True
+                    return
                 org_response = str(completion.message.content)
 
             if LOG_LLM_MESSAGES:
@@ -443,11 +452,11 @@ class GameState:
                 completion_message = ""
 
             if len(completion_message) == WORD_LENGTH:
-                self.ai_consecutive_invalid_guesses = 0
                 reasons = self.solver.reason_guess(completion_message)
                 messages.append({"role": "assistant", "content": org_response})
                 if len(reasons) > 0 and calls < MAX_LLM_CONTINUOUS_CALLS and self.num_lies == 0:
                     messages.append(generate_guess_reasoning(reasons))
+                    time.sleep(5)
                     self.enter_word_from_ai(messages, calls + 1)
                 else:
                     print(org_response)
@@ -462,12 +471,16 @@ class GameState:
                     })
                     self.enter_word_from_solver(
                         completion_message, check=(not self.show_window))
+                    if self.ai_consecutive_invalid_guesses >= 10:
+                        self.ai_strikeout = True
+                    time.sleep(5)
             else:
                 self.was_valid_guess = False
                 self.ai_consecutive_invalid_guesses += 1
                 print("Error: AI did not return a valid guess")
                 if self.ai_consecutive_invalid_guesses >= 10:
                     self.ai_strikeout = True
+                time.sleep(5)
 
         except Exception as e:
             self.error_message = str(e)
@@ -697,6 +710,7 @@ class GameState:
 
         if self.words[self.current_word_index].handle_check_word():
             self.was_valid_guess = True
+            self.ai_consecutive_invalid_guesses = 0
             delay = (FEEDBACK_DIFF_DURATION * 4 +
                      ANIMATION_DURATION) / 1000 if not self.disable_animations else 0
             Timer(
@@ -704,6 +718,8 @@ class GameState:
             ).start()
         else:
             self.was_valid_guess = False
+            self.ai_consecutive_invalid_guesses += 1
+            
 
     def add_letter(self, key_pressed: str):
         self.words[self.current_word_index].add_letter(key_pressed)

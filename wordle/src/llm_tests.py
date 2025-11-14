@@ -7,11 +7,10 @@ from classes.GameState import GameState, Status
 from classes.LetterCell import Feedback
 from constants import LLM_MODEL, MAX_LLM_CONTINUOUS_CALLS
 
-LOG_DIR = Path("benchmarks/logs")
+LOG_DIR = Path("benchmarks/gemini_logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / f"_wordle_results.json"
 
-NUM_RUNS = 100
+NUM_RUNS = 1
 
 
 # Modify run_game to append per-game stats
@@ -29,7 +28,10 @@ def run_game(game: GameState, run_id: int, total_tries: int, total_success: int,
         if game.ai_strikeout:
             print("AI failed to guess a valid word within 10 attempts. Ending game.")
             break
-
+        
+        if game.ai_timeout:
+            print("AI request timed out. Ending game.")
+            break
         # get the feedback
         offset = 0 if game.status == Status.end else 1
         feedback = game.words[game.current_word_index - offset].get_feedback()
@@ -80,8 +82,10 @@ def run_game(game: GameState, run_id: int, total_tries: int, total_success: int,
 
 
 
-def test_games():
+def test_games(lies: int = 0):
+    LOG_FILE = LOG_DIR / f"benchmark_llm_{LLM_MODEL.replace(':', '_')}_fibble{lies}.json"
     game = GameState(show_window=False, logging=False)
+    game.num_lies = lies
     total_success = 0
     total_tries = 0
     total_bad_guesses = 0
@@ -91,13 +95,16 @@ def test_games():
         "num_runs": NUM_RUNS,
         "LLM_MODEL": LLM_MODEL,
         "MAX_LLM_CONTINUOUS_CALLS": MAX_LLM_CONTINUOUS_CALLS,
-        "games": []
+        "games": [],
+        "lies": lies
     }
+
+    print(f"Playing with {lies} lies...")
 
     for i in range(NUM_RUNS):
         total_tries, total_success, total_bad_guesses, total_latency = run_game(game, i, total_tries, total_success, total_bad_guesses, total_latency, results)
         if i < NUM_RUNS - 1:
-            time.sleep(1)
+            time.sleep(0.5)
 
     # Calculate final averages
     win_rate = total_success / NUM_RUNS
@@ -122,7 +129,20 @@ def test_games():
     print(f"Total Bad Guesses: {total_bad_guesses}")
     print(f"{'='*50}")
     print(f"\nSaved benchmark results to {LOG_FILE}")
+    
+def all_fibble_variants():
+    test_games(lies=0)
+    time.sleep(20)
+    test_games(lies=1)
+    time.sleep(20)
+    test_games(lies=2)
+    time.sleep(20)
+    test_games(lies=3)
+    time.sleep(20)
+    test_games(lies=4)
+    time.sleep(20)
+    test_games(lies=5)
 
 
 if __name__ == "__main__":
-    test_games()
+    all_fibble_variants()
