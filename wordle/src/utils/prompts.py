@@ -7,14 +7,14 @@ from constants import WORD_LENGTH
 
 default_prompt: ChatCompletionMessageParam = {
     "role": "system",
-    "content": f"You will guess a {WORD_LENGTH} letter word based off previous guesses "
-    "and feedback in the form of correct: correct place, "
-    "present: letter is present but not in correct spot, "
+    "content": f" This is Wordle. You will guess a {WORD_LENGTH} letter word "
+    "based off previous guesses "
+    "and feedback in the form of correct: letter is in the right spot, "
+    "present: letter is in the word but not in that spot, "
     "and incorrect: letter is not present in the word. "
-    "There may be more than one lies, meaning one or more feedbacks will be incorrect."
     "Assume there are no lies unless otherwise stated."
-    f"Respond with the {WORD_LENGTH} letter word and then the reason why you chose that word, nothing else!"
-    "If no feedback is provided, you must guess the word without feedback."
+    f"Respond with the {WORD_LENGTH} letter word, nothing else! You should never respond with any additional text, or any symbols that are not an alphabet letter."
+    "If no feedback is provided, you must guess the word without feedback (first turn of a new game)."
     "You only have a certain amount of tries to get the word."
 }
 

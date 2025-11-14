@@ -3,17 +3,15 @@ import json
 
 from pathlib import Path
 
-import wandb
-
 from classes.GameState import GameState, Status
 from classes.LetterCell import Feedback
 from constants import LLM_MODEL, MAX_LLM_CONTINUOUS_CALLS
 
 LOG_DIR = Path("benchmarks/logs")
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = LOG_DIR / f"llm_wordle_results.json"
+LOG_FILE = LOG_DIR / f"_wordle_results.json"
 
-NUM_RUNS = 5
+NUM_RUNS = 100
 
 
 # Modify run_game to append per-game stats
@@ -27,6 +25,10 @@ def run_game(game: GameState, run_id: int, total_tries: int, total_success: int,
 
     while game.status != Status.end:
         game.enter_word_from_ai()
+        
+        if game.ai_strikeout:
+            print("AI failed to guess a valid word within 10 attempts. Ending game.")
+            break
 
         # get the feedback
         offset = 0 if game.status == Status.end else 1
@@ -52,7 +54,7 @@ def run_game(game: GameState, run_id: int, total_tries: int, total_success: int,
     game_latency = game_end_time - game_start_time
     total_latency += game_latency
 
-    avg_game_completion = total_completion / game.num_of_tries()
+    avg_game_completion = total_completion / game.num_of_tries() if game.num_of_tries() > 0 else 0
     total_success += 1 if game.success else 0
     total_tries += game.num_of_tries()
 
@@ -63,16 +65,6 @@ def run_game(game: GameState, run_id: int, total_tries: int, total_success: int,
     print(f"Average latency: {total_latency / (run_id + 1):.2f}s")
     print(f"Total bad guesses: {total_bad_guesses}")
     print()
-    wandb.log(
-        {
-            "average_game_completion": avg_game_completion,
-            "rolling_avg_tries": total_tries / (run_id + 1),
-            "rolling_avg_success": total_success / (run_id + 1),
-            "rolling_avg_latency": total_latency / (run_id + 1),
-            "total_bad_guesses": total_bad_guesses
-        },
-        step=(run_id + 1)
-    )
    
     if results_dict is not None:
         results_dict["games"].append({
@@ -133,8 +125,4 @@ def test_games():
 
 
 if __name__ == "__main__":
-    wandb.init(
-        project="llm-wordle",
-        name=f"{LLM_MODEL}-{MAX_LLM_CONTINUOUS_CALLS}-retries"
-    )
     test_games()

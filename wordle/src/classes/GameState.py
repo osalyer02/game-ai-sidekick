@@ -60,6 +60,8 @@ class GameState:
         self.clock: pygame.time.Clock | None = None
         self.num_guesses = 6
         self.num_lies = 0
+        self.ai_strikeout = False
+        self.ai_consecutive_invalid_guesses = 0
         self.lie_indexes: list[int] = []
         self.actual_word = random.choice(GUESS_WORDS).upper()
         self.word_length = len(self.actual_word)
@@ -225,6 +227,7 @@ class GameState:
         self.success = False
         self.current_word_index = 0
         self.was_valid_guess = False
+        self.ai_strikeout = False
         self.actual_word = random.choice(GUESS_WORDS).upper()
         self.words = [
             Word(
@@ -286,6 +289,9 @@ class GameState:
             self.handle_check_word()
 
     def enter_word_from_ai(self, messages: list[ChatCompletionMessageParam] | None = None, calls: int = 0):
+        if calls == MAX_LLM_CONTINUOUS_CALLS - 1:
+            self.ai_strikeout = True
+            return
         self.ai_loading = True
 
         try:
@@ -437,9 +443,9 @@ class GameState:
                 completion_message = ""
 
             if len(completion_message) == WORD_LENGTH:
+                self.ai_consecutive_invalid_guesses = 0
                 reasons = self.solver.reason_guess(completion_message)
                 messages.append({"role": "assistant", "content": org_response})
-
                 if len(reasons) > 0 and calls < MAX_LLM_CONTINUOUS_CALLS and self.num_lies == 0:
                     messages.append(generate_guess_reasoning(reasons))
                     self.enter_word_from_ai(messages, calls + 1)
@@ -458,7 +464,10 @@ class GameState:
                         completion_message, check=(not self.show_window))
             else:
                 self.was_valid_guess = False
+                self.ai_consecutive_invalid_guesses += 1
                 print("Error: AI did not return a valid guess")
+                if self.ai_consecutive_invalid_guesses >= 10:
+                    self.ai_strikeout = True
 
         except Exception as e:
             self.error_message = str(e)
